@@ -4,13 +4,12 @@ import matplotlib.pyplot as plt
 
 
 def _draw_tree(order, x1, y1, angle, angle_increment):
-    new_angle = angle * math.pi / 180
-
     if order == 1:
         return
     else:
-        x2 = (x1 + int(np.round(math.sin(new_angle) * order * 10)))
-        y2 = (y1 + int(np.round(math.cos(new_angle) * order * 10)))
+        angle_rad = angle * math.pi / 180
+        x2 = (x1 + int(np.round(math.sin(angle_rad) * order * 10)))
+        y2 = (y1 + int(np.round(math.cos(angle_rad) * order * 10)))
 
         plt.plot([x1, x2], [y1, y2])
 
