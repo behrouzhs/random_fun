@@ -10,7 +10,8 @@ def _draw_tree(level, x1, y1, angle, angle_increment):
         x2 = x1 + math.sin(angle_rad) * level * 10
         y2 = y1 + math.cos(angle_rad) * level * 10
 
-        plt.plot([x1, x2], [y1, y2])
+        colors = plt.cm.Set1.colors
+        plt.plot([x1, x2], [y1, y2], c=colors[level % 8])
 
         _draw_tree(level - 1, x2, y2, angle + angle_increment, angle_increment)
         _draw_tree(level - 1, x2, y2, angle - angle_increment, angle_increment)
