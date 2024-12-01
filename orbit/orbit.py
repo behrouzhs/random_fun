@@ -22,7 +22,7 @@ def _draw(n_vertex=12, n_neighbor=3, gap=0, color='b'):
 def draw(n_vertex=12, n_neighbor=3):
     for gap in range(3):
         _draw(n_vertex, n_neighbor, gap, 'b')
-        time.sleep(0.5)
+        time.sleep(0.2)
         _draw(n_vertex, n_neighbor, gap, 'w')
 
 
