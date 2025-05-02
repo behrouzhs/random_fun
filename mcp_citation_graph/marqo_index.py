@@ -2,6 +2,8 @@ from typing import Text
 import marqo
 import json
 import os
+import asyncio
+import httpx
 from tqdm import tqdm
 from sklearn.feature_extraction.text import CountVectorizer
 from marqo.models.marqo_index import FieldFeature, FieldRequest, FieldType, IndexType, TextPreProcessing, TextSplitMethod
@@ -63,10 +65,6 @@ except marqo.errors.MarqoWebError as e:
 
 with open(data_path, 'r', encoding='utf-8') as f:
     entries = json.load(f)
-
-
-import asyncio
-import httpx
 
 
 def preprocess_docs(batch, batch_offset=0):
