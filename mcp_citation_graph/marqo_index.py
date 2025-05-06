@@ -97,49 +97,49 @@ def index_papers_sequential(entries, batch_size=100, n_batches=None):
     print(f"Indexed {min(max_batches * batch_size, total)} documents into the 'papers' index.")
 
 
-async def async_add_documents(client, url, batch, device='cuda'):
-    # Async POST to Marqo add_documents endpoint
-    payload = {
-        'documents': batch,
-        'device': device
-    }
-    resp = await client.post(url, json=payload)
-    resp.raise_for_status()
-    return await resp.json()
+# async def async_add_documents(client, url, batch, device='cuda'):
+#     # Async POST to Marqo add_documents endpoint
+#     payload = {
+#         'documents': batch,
+#         'device': device
+#     }
+#     resp = await client.post(url, json=payload)
+#     resp.raise_for_status()
+#     return await resp.json()
 
 
-async def index_papers_concurrent(
-    entries, 
-    batch_size=100, 
-    n_batches=None, 
-    max_concurrent=5, 
-    marqo_url='http://localhost:8882', 
-    index_name='papers', 
-    device='cuda'
-):
-    # Concurrently index papers using Marqo REST API
-    total = len(entries)
-    max_batches = (total + batch_size - 1) // batch_size
-    if n_batches is not None:
-        max_batches = min(max_batches, n_batches)
-    batches = [entries[i:i+batch_size] for i in range(0, total, batch_size)][:max_batches]
-    # Preprocess all batches
-    batches = [preprocess_docs(batch, batch_offset=i*batch_size) for i, batch in enumerate(batches)]
-    url = f"{marqo_url}/indexes/{index_name}/documents"
+# async def index_papers_concurrent(
+#     entries, 
+#     batch_size=100, 
+#     n_batches=None, 
+#     max_concurrent=5, 
+#     marqo_url='http://localhost:8882', 
+#     index_name='papers', 
+#     device='cuda'
+# ):
+#     # Concurrently index papers using Marqo REST API
+#     total = len(entries)
+#     max_batches = (total + batch_size - 1) // batch_size
+#     if n_batches is not None:
+#         max_batches = min(max_batches, n_batches)
+#     batches = [entries[i:i+batch_size] for i in range(0, total, batch_size)][:max_batches]
+#     # Preprocess all batches
+#     batches = [preprocess_docs(batch, batch_offset=i*batch_size) for i, batch in enumerate(batches)]
+#     url = f"{marqo_url}/indexes/{index_name}/documents"
 
-    sem = asyncio.Semaphore(max_concurrent)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        async def sem_add(batch):
-            async with sem:
-                return await async_add_documents(client, url, batch, device)
-        tasks = [sem_add(batch) for batch in batches]
-        results = []
-        # Await all tasks INSIDE the async with block
-        for fut in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Concurrent Indexing"):
-            result = await fut
-            results.append(result)
-        print(f"Indexed {min(max_batches * batch_size, total)} documents into the '{index_name}' index (concurrent mode).")
-        return results
+#     sem = asyncio.Semaphore(max_concurrent)
+#     async with httpx.AsyncClient(timeout=60.0) as client:
+#         async def sem_add(batch):
+#             async with sem:
+#                 return await async_add_documents(client, url, batch, device)
+#         tasks = [sem_add(batch) for batch in batches]
+#         results = []
+#         # Await all tasks INSIDE the async with block
+#         for fut in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Concurrent Indexing"):
+#             result = await fut
+#             results.append(result)
+#         print(f"Indexed {min(max_batches * batch_size, total)} documents into the '{index_name}' index (concurrent mode).")
+#         return results
 
 
 if __name__ == "__main__":
