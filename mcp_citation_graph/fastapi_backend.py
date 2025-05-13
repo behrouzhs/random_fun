@@ -2,6 +2,7 @@ import uvicorn
 import marqo
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from enum import Enum
@@ -96,6 +97,27 @@ class Paper(BaseModel):
     fos_ws: Optional[List[float]] = None
     _id: Optional[str] = None
 
+class PaperWithRefs(BaseModel):
+    id: int
+    title: str
+    year: Optional[int] = None
+    n_citation: Optional[int] = None
+    doc_type: Optional[str] = None
+    publisher: Optional[str] = None
+    references: Optional[List[int]] = None
+    n_reference: Optional[int] = None
+    author_names: Optional[List[str]] = None
+    author_orgs: Optional[List[str]] = None
+    author_ids: Optional[List[int]] = None
+    venue_name: Optional[str] = None
+    venue_id: Optional[int] = None
+    venue_type: Optional[str] = None
+    fos_names: Optional[List[str]] = None
+    fos_ws: Optional[List[float]] = None
+    _id: Optional[str] = None
+    cites: Optional[List[Paper]] = []
+    cited_by: Optional[List[Paper]] = []
+
 class BulkPapersRequest(BaseModel):
     papers: List[Paper]
 
@@ -131,12 +153,12 @@ app.add_middleware(
 )
 
 # --- Endpoints ---
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, operation_id="health_check")
 def health():
     return {"status": "ok"}
 
 
-@app.get("/search_papers", response_model=PaperSearchResponse)
+@app.get("/search_papers_by_topic", response_model=PaperSearchResponse, operation_id="search_papers_by_topic")
 def search_papers(
     limit: int = Query(10, ge=1, le=100),
     research_topic: Optional[str] = None,
@@ -184,7 +206,7 @@ def search_papers(
     )
 
 
-@app.get("/cited_by")
+@app.get("/get_cited_by_paper", response_model=PaperWithRefs, operation_id="get_cited_by_paper")
 def cited_by(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     successor_hop_length: int = Query(1, ge=1, le=3, description="Number of citation hops (1-3)")
@@ -193,10 +215,10 @@ def cited_by(
     if not root:
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cited_by'] = fetch_citations(root.get('id'), successor_hop_length)
-    return root
+    return PaperWithRefs(**root)
 
 
-@app.get("/rooted_in")
+@app.get("/get_rooted_in_paper", response_model=PaperWithRefs, operation_id="get_rooted_in_paper")
 def rooted_in(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     predecessor_hop_length: int = Query(1, ge=1, le=3, description="Number of reference hops (1-3)")
@@ -205,10 +227,10 @@ def rooted_in(
     if not root:
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cites'] = fetch_origins(root.get('id'), predecessor_hop_length)
-    return root
+    return PaperWithRefs(**root)
 
 
-@app.get("/literature_graph")
+@app.get("/get_literature_graph", response_model=PaperWithRefs, operation_id="get_literature_graph")
 def literature_graph(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     predecessor_hop_length: int = Query(1, ge=1, le=3, description="Number of reference hops (1-3)"),
@@ -219,10 +241,10 @@ def literature_graph(
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cites'] = fetch_origins(root.get('id'), predecessor_hop_length)
     root['cited_by'] = fetch_citations(root.get('id'), successor_hop_length)
-    return root
+    return PaperWithRefs(**root)
 
 
-@app.get("/get_paper_by_id", response_model=Paper)
+@app.get("/get_paper_by_id", response_model=Paper, operation_id="get_paper_by_id")
 def get_paper_by_id(paper_id: int):
     res = fetch_paper_by_id(paper_id)
     if not res:
@@ -230,7 +252,7 @@ def get_paper_by_id(paper_id: int):
     return res
 
 
-@app.get("/get_paper_by_title", response_model=Paper)
+@app.get("/get_paper_by_title", response_model=Paper, operation_id="get_paper_by_title")
 def get_paper_by_title(paper_title: str):
     res = fetch_paper_by_title(paper_title)
     if not res:
@@ -238,7 +260,7 @@ def get_paper_by_title(paper_title: str):
     return res
 
 
-@app.get("/stats", response_model=StatsResponse)
+@app.get("/get_stats", response_model=StatsResponse, operation_id="get_stats")
 def get_stats():
     # Example: count, by year, by author, by venue (stubbed, can be improved)
     res = mq.index(INDEX_NAME).search("", limit=0, offset=0)
@@ -247,7 +269,7 @@ def get_stats():
     return {"total_papers": total}
 
 
-@app.get("/fields")
+@app.get("/get_fields", operation_id="get_fields")
 def get_fields():
     return [
         "id", "title", "year", "n_citation", "doc_type", "publisher", "references", "n_reference",
@@ -255,9 +277,30 @@ def get_fields():
     ]
 
 
-@app.get("/index_info")
+@app.get("/get_index_info", operation_id="get_index_info")
 def get_index_info():
     return mq.index(INDEX_NAME).get_stats()
 
+
+mcp = FastApiMCP(
+    app, 
+    name="Papers and Citation Network API MCP",
+    description="Papers and Citation Network API MCP",
+    # base_url="http://localhost:8888/mcp",
+    describe_all_responses=False,
+    describe_full_response_schema=False,
+    exclude_operations=[
+        "health_check", 
+        "get_paper_by_id", 
+        "get_paper_by_title", 
+        "get_stats", 
+        "get_fields", 
+        "get_index_info"
+    ]
+)
+mcp.mount()
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8888)
+    # uvicorn.run(app, host="0.0.0.0", port=443, ssl_keyfile="key.pem", ssl_certfile="cert.pem")
