@@ -3,9 +3,10 @@ import marqo
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, create_model
 from typing import List, Optional, Dict, Any
 from enum import Enum
+from typing import ForwardRef
 
 
 # --- Marqo client setup ---
@@ -72,11 +73,23 @@ def fetch_origins(paper_id: int, depth: int):
 
 
 # --- Pydantic Models ---
+def create_nested_model(base_model: BaseModel, depth: int):
+    if depth <= 0:
+        return base_model
+    fields = {}
+    nested_model = create_nested_model(base_model, depth - 1)
+    fields["cites"] = (Optional[List[nested_model]], Field(default=[]))
+    fields["cited_by"] = (Optional[List[nested_model]], Field(default=[]))
+    model_name = f"PaperWithRefsDepth{depth}"
+    return create_model(model_name, __base__=base_model, **fields)
+
+
 class PublicationType(Enum):
     Conference = 'Conference'
     Journal = 'Journal'
     Book = 'Book'
     All = 'All'
+
 
 class Paper(BaseModel):
     id: int
@@ -96,39 +109,27 @@ class Paper(BaseModel):
     fos_names: Optional[List[str]] = None
     fos_ws: Optional[List[float]] = None
     _id: Optional[str] = None
+    model_config = ConfigDict(json_schema_extra={"max_recursion": 3})
 
-class PaperWithRefs(BaseModel):
+
+class PaperLight(BaseModel):
     id: int
     title: str
     year: Optional[int] = None
     n_citation: Optional[int] = None
     doc_type: Optional[str] = None
-    publisher: Optional[str] = None
     references: Optional[List[int]] = None
-    n_reference: Optional[int] = None
     author_names: Optional[List[str]] = None
     author_orgs: Optional[List[str]] = None
-    author_ids: Optional[List[int]] = None
     venue_name: Optional[str] = None
-    venue_id: Optional[int] = None
-    venue_type: Optional[str] = None
-    fos_names: Optional[List[str]] = None
-    fos_ws: Optional[List[float]] = None
-    _id: Optional[str] = None
-    cites: Optional[List[Paper]] = []
-    cited_by: Optional[List[Paper]] = []
 
-class BulkPapersRequest(BaseModel):
-    papers: List[Paper]
 
-class PaperSearchRequest(BaseModel):
-    query: Optional[str] = None
-    filters: Optional[Dict[str, Any]] = None
-    limit: int = 10
-    offset: int = 0
+PaperWithRefs = create_nested_model(Paper, 3)
+PaperLightWithRefs = create_nested_model(PaperLight, 3)
+
 
 class PaperSearchResponse(BaseModel):
-    results: List[Paper]
+    results: List[PaperLight]
     cnt_result: int
     time_miliseconds: int
 
@@ -158,7 +159,12 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/search_papers_by_topic", response_model=PaperSearchResponse, operation_id="search_papers_by_topic")
+@app.get(
+    "/search_papers_by_topic", 
+    response_model=PaperSearchResponse, 
+    operation_id="search_papers_by_topic", 
+    summary='Search papers by topic or other criteria such as year, citation count, author, publication venue, etc.'
+)
 def search_papers(
     limit: int = Query(10, ge=1, le=100),
     research_topic: Optional[str] = None,
@@ -206,7 +212,12 @@ def search_papers(
     )
 
 
-@app.get("/get_cited_by_paper", response_model=PaperWithRefs, operation_id="get_cited_by_paper")
+@app.get(
+    "/get_cited_by_paper", 
+    response_model=PaperLightWithRefs, 
+    operation_id="get_cited_by_paper",
+    summary='Get papers that cite a specific paper.'
+)
 def cited_by(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     successor_hop_length: int = Query(1, ge=1, le=3, description="Number of citation hops (1-3)")
@@ -215,10 +226,15 @@ def cited_by(
     if not root:
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cited_by'] = fetch_citations(root.get('id'), successor_hop_length)
-    return PaperWithRefs(**root)
+    return PaperLightWithRefs(**root)
 
 
-@app.get("/get_rooted_in_paper", response_model=PaperWithRefs, operation_id="get_rooted_in_paper")
+@app.get(
+    "/get_rooted_in_paper", 
+    response_model=PaperLightWithRefs, 
+    operation_id="get_rooted_in_paper",
+    summary='Get papers that a specific paper is rooted in (references).'
+)
 def rooted_in(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     predecessor_hop_length: int = Query(1, ge=1, le=3, description="Number of reference hops (1-3)")
@@ -227,10 +243,15 @@ def rooted_in(
     if not root:
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cites'] = fetch_origins(root.get('id'), predecessor_hop_length)
-    return PaperWithRefs(**root)
+    return PaperLightWithRefs(**root)
 
 
-@app.get("/get_literature_graph", response_model=PaperWithRefs, operation_id="get_literature_graph")
+@app.get(
+    "/get_literature_graph", 
+    response_model=PaperLightWithRefs, 
+    operation_id="get_literature_graph",
+    summary='Get the literature graph of a specific paper, this includes both references (prior research) and citations (build on top).'
+)
 def literature_graph(
     paper_title: str = Query(..., description="Title of the paper to search for"),
     predecessor_hop_length: int = Query(1, ge=1, le=3, description="Number of reference hops (1-3)"),
@@ -241,10 +262,15 @@ def literature_graph(
         raise HTTPException(status_code=404, detail=f"Paper with title '{paper_title}' not found")
     root['cites'] = fetch_origins(root.get('id'), predecessor_hop_length)
     root['cited_by'] = fetch_citations(root.get('id'), successor_hop_length)
-    return PaperWithRefs(**root)
+    return PaperLightWithRefs(**root)
 
 
-@app.get("/get_paper_by_id", response_model=Paper, operation_id="get_paper_by_id")
+@app.get(
+    "/get_paper_by_id", 
+    response_model=PaperLight, 
+    operation_id="get_paper_by_id",
+    summary='Get full paper information by its ID.'
+)
 def get_paper_by_id(paper_id: int):
     res = fetch_paper_by_id(paper_id)
     if not res:
@@ -252,7 +278,12 @@ def get_paper_by_id(paper_id: int):
     return res
 
 
-@app.get("/get_paper_by_title", response_model=Paper, operation_id="get_paper_by_title")
+@app.get(
+    "/get_paper_by_title", 
+    response_model=PaperLight, 
+    operation_id="get_paper_by_title",
+    summary='Get full paper information by its title.'
+)
 def get_paper_by_title(paper_title: str):
     res = fetch_paper_by_title(paper_title)
     if not res:
