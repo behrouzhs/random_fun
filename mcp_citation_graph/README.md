@@ -1,6 +1,8 @@
 # Academic Paper Citation Network with MCP Integration
 
-This project creates a comprehensive academic paper citation network system that combines vector search, graph databases, and AI agents. The system processes DBLP academic paper data, creates searchable indexes, and provides an intelligent agent interface for querying the citation network.
+This project creates an AI agent on top of a comprehensive academic paper citation network data (5M+ papers). Various technologies are used in this project including MCP server, MCP client, vector search, graph databases, and AI agents. 
+
+**The system processes DBLP academic paper data, creates searchable indexes, REST APIs for querying the citation network, MCP server to convert the APIs into LLM-ready tools, MCP client to discover and invoke tools, and an intelligent agent interface that puts everything together for querying the citation network.**
 
 ## Architecture Overview
 
@@ -10,7 +12,7 @@ The application consists of several interconnected components:
 2. **Vector Database Indexing** ([marqo_index.py](marqo_index.py)) - Creates searchable vector embeddings
 3. **Graph Database** ([graph_db.py](graph_db.py)) - Builds Neo4j citation network
 4. **FastAPI Backend and MCP Server** ([fastapi_backend.py](fastapi_backend.py)) - REST API with MCP server
-5. **MCP Agent** ([mcp_agent.py](mcp_agent.py)) - AI agent and the MCP client
+5. **MCP Client and AI Agent** ([mcp_agent.py](mcp_agent.py)) - AI agent and the MCP client
 6. **Streamlit Interface** ([streamlit_agent.py](streamlit_agent.py)) - Web UI to interact with the agent
 
 ## Prerequisites
