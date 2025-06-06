@@ -1,8 +1,8 @@
-# Academic Paper Citation Network with MCP Integration
+# AI Agent with MCP Integration to Search Academic Papers
 
 This project creates an AI agent on top of a comprehensive academic paper citation network data (5M+ papers). Various technologies are used in this project including MCP server, MCP client, vector search, graph databases, and AI agents. 
 
-**The system processes DBLP academic paper data, creates searchable indexes, REST APIs for querying the citation network, MCP server to convert the APIs into LLM-ready tools, MCP client to discover and invoke tools, and an intelligent agent interface that puts everything together for querying the citation network.**
+**The system processes DBLP academic paper data, creates searchable indexes, REST APIs for querying the citation network, MCP server to convert the APIs into LLM-ready tools, MCP client to discover and invoke tools, and an intelligent agent interface that puts everything together for querying the citation network and answering research questions.**
 
 ## Architecture Overview
 
